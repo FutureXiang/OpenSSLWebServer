@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
+#include <set>
+#include <map>
+#include <string>
+#include <regex>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -24,6 +29,13 @@
 #define HTTPSPORT 8000
 #define METHOD_GET 0
 #define METHOD_HEAD 1
+#define METHOD_POST 2
+
+#define groupGenToken "/loginWithoutToken"
+#define groupUseToken "/loginWithToken"
+#define sendText "/send"
+#define recvText "/receive"
+extern std::set<std::string> ALL_METHODS;
 
 #define BUFSIZZ 1024
 #define ROOTCERTPEM "./cert/rootCA_cert.pem"
@@ -83,7 +95,7 @@ typedef struct REQUEST
 {
 	HANDLE hExit;
 	SOCKET Socket;			   // 请求的socket
-	int nMethod;			   // 请求的使用方法：GET或HEAD
+	int nMethod;			   // 请求的使用方法：GET或HEAD或POST
 	DWORD dwRecv;			   // 收到的字节数
 	DWORD dwSend;			   // 发送的字节数
 	int hFile;				   // 请求连接的文件
@@ -95,6 +107,9 @@ typedef struct REQUEST
 	char key[1024];			   // 正确认证信息
 	SSL_CTX *ssl_ctx;
 	void *pHttpProtocol; // 指向类CHttpProtocol的指针
+
+	char method[64];						 // 请求的方法名
+	std::map<std::string, std::string> args; // 请求的参数
 } REQUEST, *PREQUEST;
 
 typedef struct HTTPSTATS

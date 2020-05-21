@@ -6,6 +6,7 @@ using namespace std;
 class CHttpProtocol
 {
 public:
+	PREQUEST pReqPointer;		   //反向指针 便于获取报文解析出的信息
 	char *ErrorMsg;				   //判断是否初始化过程中出错的消息
 	SOCKET m_listenSocket;		   //创建监听套接字
 	map<char *, char *> m_typeMap; // 保存content-type和文件后缀的对应关系map
@@ -48,9 +49,18 @@ public:
 	bool SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize); //接收HTTPS请求
 	bool SSLSendHeader(PREQUEST pReq, BIO *io);							  //发送HTTPS头
 	bool SSLSendFile(PREQUEST pReq, BIO *io);							  //由SSL通道发送文件
-	bool SSLSendBuffer(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize);
+	bool SSLSendJson(PREQUEST pReq, BIO *io);
+
+private:
+	void _groupGenToken_response();
+	void _groupUseToken_response();
+	void _sendText_response();
+	void _recvText_response();
+	string _response_json;
 
 public:
 	~CHttpProtocol(void);
 	void Test(PREQUEST pReq);
 };
+
+void printMap(map<string, string> &m);

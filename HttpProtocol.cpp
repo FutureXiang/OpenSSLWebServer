@@ -258,6 +258,7 @@ bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSi
 	pBuf[length] = '\0';
 	return true;
 }
+
 bool CHttpProtocol::StartHttpSrv()
 {
 	CreateTypeMap();
@@ -303,6 +304,7 @@ void *CHttpProtocol::ListenThread(LPVOID param)
 		pReq->dwRecv = 0;
 		pReq->dwSend = 0;
 		pReq->pHttpProtocol = pHttpProtocol;
+		pHttpProtocol->pReqPointer = pReq;
 		pReq->ssl_ctx = pHttpProtocol->ctx;
 
 		// 创建client进程，处理request
@@ -359,7 +361,11 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 		printf("%s \n", buf);
 		//return 0;
 	}
+
 	nRet = pHttpProtocol->Analyze(pReq, buf);
+	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n", pReq->nMethod, pReq->method);
+	printMap(pReq->args);
+
 	if (nRet)
 	{
 		// 处理错误
@@ -378,13 +384,39 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	// 向client传送数据
 	if (pReq->nMethod == METHOD_GET)
 	{
-		printf("Sending..............................\n");
-		if (!pHttpProtocol->SSLSendFile(pReq, io))
+		if (strcmp(pReq->method, groupGenToken) == 0)
 		{
-			return 0;
+			pHttpProtocol->_groupGenToken_response();
+			pHttpProtocol->SSLSendJson(pReq, io);
+		}
+		else if (strcmp(pReq->method, recvText) == 0)
+		{
+			pHttpProtocol->_recvText_response();
+			pHttpProtocol->SSLSendJson(pReq, io);
+		}
+		else
+		{
+			printf("Sending website file..............................\n");
+			if (!pHttpProtocol->SSLSendFile(pReq, io))
+			{
+				return 0;
+			}
 		}
 	}
-	printf("File sent!!");
+	else if (pReq->nMethod == METHOD_POST)
+	{
+		if (strcmp(pReq->method, groupUseToken) == 0)
+		{
+			pHttpProtocol->_groupUseToken_response();
+			pHttpProtocol->SSLSendJson(pReq, io);
+		}
+		else if (strcmp(pReq->method, sendText) == 0)
+		{
+			pHttpProtocol->_sendText_response();
+			pHttpProtocol->SSLSendJson(pReq, io);
+		}
+	}
+	printf("response finished!!");
 	//pHttpProtocol->Test(pReq);
 	pHttpProtocol->Disconnect(pReq);
 	delete pReq;
@@ -414,6 +446,10 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
 	{
 		pReq->nMethod = METHOD_HEAD;
 	}
+	else if (!strcmp(cpToken, "POST")) // POST命令
+	{
+		pReq->nMethod = METHOD_POST;
+	}
 	else
 	{
 		strcpy(pReq->StatuCodeReason, HTTP_STATUS_NOTIMPLEMENTED);
@@ -426,6 +462,21 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
 	{
 		strcpy(pReq->StatuCodeReason, HTTP_STATUS_BADREQUEST);
 		return 1;
+	}
+
+	string methodArgs = string(cpToken);
+	char *methodToken = strtok(cpToken, "?");
+	strcpy(pReq->method, methodToken); // TODO: safety check
+
+	pReq->args.clear();
+	smatch result;
+	regex pattern("(\\?|\\&)([^=]+)\\=([^&]+)");
+	string::const_iterator itStart = methodArgs.begin();
+	string::const_iterator itEnd = methodArgs.end();
+	while (regex_search(itStart, itEnd, result, pattern))
+	{
+		pReq->args[result[2]] = result[3];
+		itStart = result[0].second;
 	}
 
 	strcpy(pReq->szFileName, m_strRootDir);
@@ -458,6 +509,7 @@ int CHttpProtocol::FileExist(PREQUEST pReq)
 		return 1;
 	}
 }
+
 void CHttpProtocol::Test(PREQUEST pReq)
 {
 	struct stat buf;
@@ -526,32 +578,44 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io)
 {
 	char Header[2048] = " ";
 	int n = FileExist(pReq);
-	if (!n) // 文件不存在，则返回
+
+	if (n) // 请求某文件
 	{
-		err_exit("The file requested doesn't exist!");
-	}
+		char curTime[50];
+		GetCurrentTime(curTime);
+		// 取得文件长度
+		struct stat buf;
+		long length;
+		if (stat(pReq->szFileName, &buf) < 0)
+		{
+			err_exit("Getting filesize error!!\r\n");
+		}
+		length = buf.st_size;
 
-	char curTime[50];
-	GetCurrentTime(curTime);
-	// 取得文件长度
-	struct stat buf;
-	long length;
-	if (stat(pReq->szFileName, &buf) < 0)
+		// 取得文件的类型
+		char ContentType[50] = " ";
+		GetContentType(pReq, (char *)ContentType);
+
+		sprintf((char *)Header, "HTTP/1.1 %s\r\nDate: %s\r\nServer: %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
+				HTTP_STATUS_OK,
+				curTime,					 // Date
+				"Villa Server 192.168.1.49", // Server"My Https Server"
+				ContentType,				 // Content-Type
+				length);					 // Content-length
+	}
+	else if (ALL_METHODS.count(pReq->method)) // 请求某方法
 	{
-		err_exit("Getting filesize error!!\r\n");
+		char curTime[50];
+		GetCurrentTime(curTime);
+		sprintf((char *)Header, "HTTP/1.1 %s\r\nDate: %s\r\nContent-Type: %s\r\n\r\n",
+				HTTP_STATUS_OK,
+				curTime,			 // Date
+				"application/json"); // Content-Type
 	}
-	length = buf.st_size;
-
-	// 取得文件的类型
-	char ContentType[50] = " ";
-	GetContentType(pReq, (char *)ContentType);
-
-	sprintf((char *)Header, "HTTP/1.1 %s\r\nDate: %s\r\nServer: %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
-			HTTP_STATUS_OK,
-			curTime,					 // Date
-			"Villa Server 192.168.1.49", // Server"My Https Server"
-			ContentType,				 // Content-Type
-			length);					 // Content-length
+	else
+	{
+		err_exit("The file/method requested doesn't exist!");
+	}
 
 	//if(BIO_puts(io, Header) <= 0)//错误
 	if (BIO_write(io, Header, strlen(Header)) <= 0) //错误
@@ -628,4 +692,79 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 	{
 		err_exit("Closing file error!");
 	}
+}
+
+bool CHttpProtocol::SSLSendJson(PREQUEST pReq, BIO *io)
+{
+	CHttpProtocol *pHttpProtocol = (CHttpProtocol *)pReq->pHttpProtocol;
+	const char *buf;
+	int length;
+	buf = pHttpProtocol->_response_json.c_str();
+	length = strlen(buf);
+	if (BIO_write(io, buf, length) <= 0)
+	{
+		if (!BIO_should_retry(io))
+		{
+			printf("BIO_write() error!\r\n");
+		}
+	}
+	BIO_flush(io);
+	pReq->dwSend += length;
+}
+
+void CHttpProtocol::_groupGenToken_response()
+{
+	_response_json = "";
+
+	printf("*** loginWithoutToken() !!!\n");
+	int code = 123;
+	string token = "456";
+	string message = "hahaha";
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
+			code,
+			token.c_str(),
+			message.c_str());
+	_response_json = string(temp_string);
+}
+
+void CHttpProtocol::_groupUseToken_response()
+{
+}
+
+void CHttpProtocol::_sendText_response()
+{
+}
+
+void CHttpProtocol::_recvText_response()
+{
+	_response_json = "";
+
+	printf("*** receive(token) !!!\n");
+	int code = 123;
+	if (!this->pReqPointer->args.count("token"))
+	{
+		printf("[ERROR] token is None @ receive(token) !!!\n");
+		return;
+	}
+	string message = "hahaha" + this->pReqPointer->args["token"];
+
+	string dataList = "[";
+	string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";
+	string data2 = "{\"name\": \"name2\", \"text\": \"123\\n456\\n789\\n\", \"time\": \"time2\"}";
+	dataList.append(data1 + ",");
+	dataList.append(data2 + "]");
+
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}\n",
+			code,
+			message.c_str(),
+			dataList.c_str());
+	_response_json = string(temp_string);
+}
+
+void printMap(map<string, string> &m)
+{
+	for (auto ele : m)
+		cout << "\t{" << ele.first << ": " << ele.second << "}\n";
 }
