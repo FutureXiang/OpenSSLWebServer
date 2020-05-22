@@ -6,7 +6,7 @@ char *CHttpProtocol::pass = PASSWORD;
 CHttpProtocol::CHttpProtocol(void)
 {
 	bio_err = 0;
-	m_strRootDir = "/var/www/html"; //需修改此路径
+	m_strRootDir = "./WebServer"; //需修改此路径
 	ErrorMsg = "";
 	//创建上下文环境
 	ErrorMsg = initialize_ctx();
@@ -438,6 +438,7 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
 
 	// 判断ruquest的mothed
 	cpToken = strtok((char *)pBuf, szSeps); // 缓存中字符串分解为一组标记串。
+	printf("%s\n",cpToken);
 	if (!strcmp(cpToken, "GET"))			// GET命令
 	{
 		pReq->nMethod = METHOD_GET;
@@ -730,10 +731,73 @@ void CHttpProtocol::_groupGenToken_response()
 
 void CHttpProtocol::_groupUseToken_response()
 {
+	_response_json = "";
+	int code = 0;
+	printf("*** loginWithToken() !!!\n");
+	if(!this->pReqPointer->args.count("token"))
+	{
+		printf("[ERROR] token is None @ receive(token) !!!\n");
+		return;
+	}
+	string token = this->pReqPointer->args["token"];
+	string message = "Your token is " + token + ", you can use it to invite your partner!";
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
+			code,
+			message.c_str());
+	_response_json = string(temp_string);
 }
 
 void CHttpProtocol::_sendText_response()
 {
+	_response_json = "";
+	int code = 0;
+	printf("*** sendMessage() !!!\n");
+	if(!this->pReqPointer->args.count("token"))
+	{
+		printf("[ERROR] token is None @ receive(token) !!!\n");
+		return;
+	}
+	if(!this->pReqPointer->args.count("name"))
+	{
+		printf("[ERROR] token is None @ receive(name) !!!\n");
+		return;
+	}
+	if(!this->pReqPointer->args.count("text"))
+	{
+		printf("[ERROR] token is None @ receive(text) !!!\n");
+		return;
+	}
+	if(!this->pReqPointer->args.count("time"))
+	{
+		printf("[ERROR] token is None @ receive(time) !!!\n");
+		return;
+	}
+	string token = this->pReqPointer->args["token"];
+	string name = this->pReqPointer->args["name"];
+	string text = this->pReqPointer->args["text"];
+	string time = this->pReqPointer->args["time"];
+	if(messageList.find(token) != messageList.end()){
+		TextMessage tmpMessage;
+		tmpMessage.name = name;
+		tmpMessage.text = text;
+		tmpMessage.time = time;
+		messageList[token].push_back(tmpMessage);
+	} else{
+		vector<TextMessage> tmp;
+		messageList[token] = tmp;
+		TextMessage tmpMessage;
+		tmpMessage.name = name;
+		tmpMessage.text = text;
+		tmpMessage.time = time;
+		messageList[token].push_back(tmpMessage);
+	}
+	string message = "You\'ve send the message successful\n";
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
+			code,
+			message.c_str());
+	_response_json = string(temp_string);
 }
 
 void CHttpProtocol::_recvText_response()
