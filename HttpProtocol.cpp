@@ -304,7 +304,6 @@ void *CHttpProtocol::ListenThread(LPVOID param)
 		pReq->dwRecv = 0;
 		pReq->dwSend = 0;
 		pReq->pHttpProtocol = pHttpProtocol;
-		pHttpProtocol->pReqPointer = pReq;
 		pReq->ssl_ctx = pHttpProtocol->ctx;
 
 		// 创建client进程，处理request
@@ -362,9 +361,11 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 		//return 0;
 	}
 
-	nRet = pHttpProtocol->Analyze(pReq, buf);
-	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n", pReq->nMethod, pReq->method);
-	printMap(pReq->args);
+	string method; // 请求的方法名
+	str2str args;  // 请求的参数
+	nRet = pHttpProtocol->Analyze(pReq, buf, method, args);
+	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n", pReq->nMethod, method.c_str());
+	printMap(args);
 
 	if (nRet)
 	{
@@ -375,7 +376,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	}
 
 	// 生成并返回头部
-	if (!pHttpProtocol->SSLSendHeader(pReq, io))
+	if (!pHttpProtocol->SSLSendHeader(pReq, io, method))
 	{
 		pHttpProtocol->err_exit("Sending fileheader error!\r\n");
 	}
@@ -384,14 +385,14 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	// 向client传送数据
 	if (pReq->nMethod == METHOD_GET)
 	{
-		if (strcmp(pReq->method, groupGenToken) == 0)
+		if (method == groupGenToken)
 		{
-			pHttpProtocol->_groupGenToken_response();
+			pHttpProtocol->_groupGenToken_response(args);
 			pHttpProtocol->SSLSendJson(pReq, io);
 		}
-		else if (strcmp(pReq->method, recvText) == 0)
+		else if (method == recvText)
 		{
-			pHttpProtocol->_recvText_response();
+			pHttpProtocol->_recvText_response(args);
 			pHttpProtocol->SSLSendJson(pReq, io);
 		}
 		else
@@ -405,14 +406,14 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	}
 	else if (pReq->nMethod == METHOD_POST)
 	{
-		if (strcmp(pReq->method, groupUseToken) == 0)
+		if (method == groupUseToken)
 		{
-			pHttpProtocol->_groupUseToken_response();
+			pHttpProtocol->_groupUseToken_response(args);
 			pHttpProtocol->SSLSendJson(pReq, io);
 		}
-		else if (strcmp(pReq->method, sendText) == 0)
+		else if (method == sendText)
 		{
-			pHttpProtocol->_sendText_response();
+			pHttpProtocol->_sendText_response(args);
 			pHttpProtocol->SSLSendJson(pReq, io);
 		}
 	}
@@ -424,7 +425,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	return NULL;
 }
 
-int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
+int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf, string &method, str2str &args)
 {
 	// 分析接收到的信息
 	char szSeps[] = " \n";
@@ -466,16 +467,16 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
 
 	string methodArgs = string(cpToken);
 	char *methodToken = strtok(cpToken, "?");
-	strcpy(pReq->method, methodToken); // TODO: safety check
+	method = string(methodToken);
 
-	pReq->args.clear();
+	args.clear();
 	smatch result;
 	regex pattern("(\\?|\\&)([^=]+)\\=([^&]+)");
 	string::const_iterator itStart = methodArgs.begin();
 	string::const_iterator itEnd = methodArgs.end();
 	while (regex_search(itStart, itEnd, result, pattern))
 	{
-		pReq->args[result[2]] = result[3];
+		args[result[2]] = result[3];
 		itStart = result[0].second;
 	}
 
@@ -574,7 +575,7 @@ bool CHttpProtocol::GetContentType(PREQUEST pReq, LPSTR type)
 	return 1;
 }
 
-bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io)
+bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io, string potential_called_method)
 {
 	char Header[2048] = " ";
 	int n = FileExist(pReq);
@@ -603,7 +604,7 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io)
 				ContentType,				 // Content-Type
 				length);					 // Content-length
 	}
-	else if (ALL_METHODS.count(pReq->method)) // 请求某方法
+	else if (ALL_METHODS.count(potential_called_method)) // 请求某方法
 	{
 		char curTime[50];
 		GetCurrentTime(curTime);
@@ -712,7 +713,7 @@ bool CHttpProtocol::SSLSendJson(PREQUEST pReq, BIO *io)
 	pReq->dwSend += length;
 }
 
-void CHttpProtocol::_groupGenToken_response()
+void CHttpProtocol::_groupGenToken_response(str2str &args)
 {
 	_response_json = "";
 
@@ -728,26 +729,27 @@ void CHttpProtocol::_groupGenToken_response()
 	_response_json = string(temp_string);
 }
 
-void CHttpProtocol::_groupUseToken_response()
+void CHttpProtocol::_groupUseToken_response(str2str &args)
 {
 }
 
-void CHttpProtocol::_sendText_response()
+void CHttpProtocol::_sendText_response(str2str &args)
 {
 }
 
-void CHttpProtocol::_recvText_response()
+void CHttpProtocol::_recvText_response(str2str &args)
 {
 	_response_json = "";
 
 	printf("*** receive(token) !!!\n");
+	printMap(args);
 	int code = 123;
-	if (!this->pReqPointer->args.count("token"))
+	if (!args.count("token"))
 	{
 		printf("[ERROR] token is None @ receive(token) !!!\n");
 		return;
 	}
-	string message = "hahaha" + this->pReqPointer->args["token"];
+	string message = "hahaha" + args["token"];
 
 	string dataList = "[";
 	string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";

@@ -3,10 +3,11 @@
 #include <map>
 using namespace std;
 
+typedef map<string, string> str2str;
+
 class CHttpProtocol
 {
 public:
-	PREQUEST pReqPointer;		   //反向指针 便于获取报文解析出的信息
 	char *ErrorMsg;				   //判断是否初始化过程中出错的消息
 	SOCKET m_listenSocket;		   //创建监听套接字
 	map<char *, char *> m_typeMap; // 保存content-type和文件后缀的对应关系map
@@ -33,12 +34,12 @@ public:
 	static void *ListenThread(LPVOID param); //监听线程
 	static void *ClientThread(LPVOID param); //客户线程
 
-	bool RecvRequest(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize); //接收HTTP请求
-	int Analyze(PREQUEST pReq, LPBYTE pBuf);					   //分析HTTP请求
-	void Disconnect(PREQUEST pReq);								   //断开连接
-	void CreateTypeMap();										   //创建类型映射
-	void SendHeader(PREQUEST pReq);								   //发送HTTP头
-	int FileExist(PREQUEST pReq);								   //判断文件是否存在
+	bool RecvRequest(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize);	//接收HTTP请求
+	int Analyze(PREQUEST pReq, LPBYTE pBuf, string &m, str2str &a); //分析HTTP请求
+	void Disconnect(PREQUEST pReq);									//断开连接
+	void CreateTypeMap();											//创建类型映射
+	void SendHeader(PREQUEST pReq);									//发送HTTP头
+	int FileExist(PREQUEST pReq);									//判断文件是否存在
 
 	void GetCurrentTime(LPSTR lpszString);						  //得到系统当前时间
 	bool GetLastModified(HANDLE hFile, LPSTR lpszString);		  //得到文件上次修改的时间
@@ -47,15 +48,15 @@ public:
 	bool SendBuffer(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize); //发送缓冲区内容
 public:
 	bool SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize); //接收HTTPS请求
-	bool SSLSendHeader(PREQUEST pReq, BIO *io);							  //发送HTTPS头
+	bool SSLSendHeader(PREQUEST pReq, BIO *io, string method);			  //发送HTTPS头
 	bool SSLSendFile(PREQUEST pReq, BIO *io);							  //由SSL通道发送文件
 	bool SSLSendJson(PREQUEST pReq, BIO *io);
 
 private:
-	void _groupGenToken_response();
-	void _groupUseToken_response();
-	void _sendText_response();
-	void _recvText_response();
+	void _groupGenToken_response(str2str &args);
+	void _groupUseToken_response(str2str &args);
+	void _sendText_response(str2str &args);
+	void _recvText_response(str2str &args);
 	string _response_json;
 
 public:

@@ -107,9 +107,6 @@ typedef struct REQUEST
 	char key[1024];			   // 正确认证信息
 	SSL_CTX *ssl_ctx;
 	void *pHttpProtocol; // 指向类CHttpProtocol的指针
-
-	char method[64];						 // 请求的方法名
-	std::map<std::string, std::string> args; // 请求的参数
 } REQUEST, *PREQUEST;
 
 typedef struct HTTPSTATS
