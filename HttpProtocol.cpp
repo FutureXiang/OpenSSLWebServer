@@ -6,7 +6,7 @@ char *CHttpProtocol::pass = PASSWORD;
 CHttpProtocol::CHttpProtocol(void)
 {
 	bio_err = 0;
-	m_strRootDir = "./WebServer"; //需修改此路径
+	m_strRootDir = "/var/www/html"; //需修改此路径
 	ErrorMsg = "";
 	//创建上下文环境
 	ErrorMsg = initialize_ctx();
@@ -438,8 +438,8 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf)
 
 	// 判断ruquest的mothed
 	cpToken = strtok((char *)pBuf, szSeps); // 缓存中字符串分解为一组标记串。
-	printf("%s\n",cpToken);
-	if (!strcmp(cpToken, "GET"))			// GET命令
+	printf("%s\n", cpToken);
+	if (!strcmp(cpToken, "GET")) // GET命令
 	{
 		pReq->nMethod = METHOD_GET;
 	}
@@ -733,10 +733,10 @@ void CHttpProtocol::_groupUseToken_response()
 {
 	_response_json = "";
 	int code = 0;
-	printf("*** loginWithToken() !!!\n");
-	if(!this->pReqPointer->args.count("token"))
+	printf("*** loginWithToken(token) !!!\n");
+	if (!this->pReqPointer->args.count("token"))
 	{
-		printf("[ERROR] token is None @ receive(token) !!!\n");
+		printf("[ERROR] token is None @ loginWithToken(token) !!!\n");
 		return;
 	}
 	string token = this->pReqPointer->args["token"];
@@ -752,38 +752,41 @@ void CHttpProtocol::_sendText_response()
 {
 	_response_json = "";
 	int code = 0;
-	printf("*** sendMessage() !!!\n");
-	if(!this->pReqPointer->args.count("token"))
+	printf("*** send(token, name, text, time) !!!\n");
+	if (!this->pReqPointer->args.count("token"))
 	{
-		printf("[ERROR] token is None @ receive(token) !!!\n");
+		printf("[ERROR] token is None @ send(token, ...) !!!\n");
 		return;
 	}
-	if(!this->pReqPointer->args.count("name"))
+	if (!this->pReqPointer->args.count("name"))
 	{
-		printf("[ERROR] token is None @ receive(name) !!!\n");
+		printf("[ERROR] name is None @ send(..., name, ...) !!!\n");
 		return;
 	}
-	if(!this->pReqPointer->args.count("text"))
+	if (!this->pReqPointer->args.count("text"))
 	{
-		printf("[ERROR] token is None @ receive(text) !!!\n");
+		printf("[ERROR] text is None @ send(..., text, ...) !!!\n");
 		return;
 	}
-	if(!this->pReqPointer->args.count("time"))
+	if (!this->pReqPointer->args.count("time"))
 	{
-		printf("[ERROR] token is None @ receive(time) !!!\n");
+		printf("[ERROR] time is None @ send(..., time) !!!\n");
 		return;
 	}
 	string token = this->pReqPointer->args["token"];
 	string name = this->pReqPointer->args["name"];
 	string text = this->pReqPointer->args["text"];
 	string time = this->pReqPointer->args["time"];
-	if(messageList.find(token) != messageList.end()){
+	if (messageList.find(token) != messageList.end())
+	{
 		TextMessage tmpMessage;
 		tmpMessage.name = name;
 		tmpMessage.text = text;
 		tmpMessage.time = time;
 		messageList[token].push_back(tmpMessage);
-	} else{
+	}
+	else
+	{
 		vector<TextMessage> tmp;
 		messageList[token] = tmp;
 		TextMessage tmpMessage;
