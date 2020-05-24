@@ -215,7 +215,7 @@ int CHttpProtocol::TcpListen()
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_addr.s_addr = INADDR_ANY;
 	sin.sin_family = PF_INET;
-	sin.sin_port = htons(8000); //访问端口为8000
+	sin.sin_port = htons(HTTPSPORT); //访问端口
 
 	if (bind(sock, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0) //命名套接字
 		err_exit("Couldn't bind");
