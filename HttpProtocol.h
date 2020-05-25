@@ -37,7 +37,7 @@ public:
 	static void *ClientThread(LPVOID param); //客户线程
 
 	bool RecvRequest(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize);	//接收HTTP请求
-	int Analyze(PREQUEST pReq, LPBYTE pBuf, string &m, str2str &a); //分析HTTP请求
+	int Analyze(PREQUEST pReq, LPBYTE pBuf, string &body, string &m, str2str &a); //分析HTTP请求
 	void Disconnect(PREQUEST pReq);									//断开连接
 	void CreateTypeMap();											//创建类型映射
 	void SendHeader(PREQUEST pReq);									//发送HTTP头
@@ -49,7 +49,7 @@ public:
 	void SendFile(PREQUEST pReq);								  //发送文件
 	bool SendBuffer(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize); //发送缓冲区内容
 public:
-	bool SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize); //接收HTTPS请求
+	bool SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize, string &o); //接收HTTPS请求
 	bool SSLSendHeader(PREQUEST pReq, BIO *io, string method);			  //发送HTTPS头
 	bool SSLSendFile(PREQUEST pReq, BIO *io);							  //由SSL通道发送文件
 	bool SSLSendJson(PREQUEST pReq, BIO *io);
