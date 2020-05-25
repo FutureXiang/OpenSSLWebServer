@@ -814,6 +814,8 @@ void CHttpProtocol::_groupUseToken_response(str2str &args)
 	else
 	{
 		string token = args["token"];
+		vector<TextMessage> tmp;
+		messageList[token] = tmp;
 		message = "Your token is " + token + ", you can use it to invite your partners!";
 	}
 	char temp_string[2048] = "";
@@ -867,18 +869,20 @@ void CHttpProtocol::_sendText_response(str2str &args)
 			tmpMessage.text = text;
 			tmpMessage.time = time;
 			messageList[token].push_back(tmpMessage);
+			message = "You\'ve send the message successful";
 		}
 		else
 		{
-			vector<TextMessage> tmp;
+			message = "The token you used("+ token +") is invalid";
+			code = -404;
+			/* vector<TextMessage> tmp;
 			messageList[token] = tmp;
 			TextMessage tmpMessage;
 			tmpMessage.name = name;
 			tmpMessage.text = text;
 			tmpMessage.time = time;
-			messageList[token].push_back(tmpMessage);
+			messageList[token].push_back(tmpMessage);*/
 		}
-		message = "You\'ve send the message successful";
 	}
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
@@ -905,14 +909,16 @@ void CHttpProtocol::_recvText_response(str2str &args)
 	else
 	{
 		string token = args["token"];
-		message = "You are getting messages from room " + args["token"];
-		dataList = "[";
 		if (messageList.find(token) == messageList.end())
 		{
-			dataList.append("]");
+			message = "The token you used("+ token +") is invalid";
+			code = -404;
+			dataList = "[]";
 		}
 		else
 		{
+			message = "You are getting messages from room " + args["token"];
+			dataList = "[";
 			for (auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++)
 			{
 				string tempData = "{\"name\": \"" + iter->name + "\", \"text\": \"" + iter->text + "\", \"time\": \"" + iter->time + "\"}";
