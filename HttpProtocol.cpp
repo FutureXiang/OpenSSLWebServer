@@ -217,8 +217,14 @@ int CHttpProtocol::TcpListen()
 	sin.sin_family = PF_INET;
 	sin.sin_port = htons(HTTPSPORT); //访问端口
 
+	const int trueFlag = 1;
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueFlag, sizeof(int));
+
 	if (bind(sock, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0) //命名套接字
+	{
+		printf("socket bind error = %d\n", errno);
 		err_exit("Couldn't bind");
+	}
 	listen(sock, 5); //设置队列
 	//printf("TcpListen Ok\n");
 
@@ -357,6 +363,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	//nRet<=0时发生错误
 	if (nRet <= 0)
 	{
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("SSL_accept()error! \r\n");
 		//return 0;
 	}
@@ -376,6 +383,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	if (!pHttpProtocol->SSLRecvRequest(ssl, io, buf, sizeof(buf), body))
 	{
 		// 处理错误
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("Receiving SSLRequest error!! \r\n");
 	}
 	else
@@ -402,6 +410,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	// 生成并返回头部
 	if (!pHttpProtocol->SSLSendHeader(pReq, io, method))
 	{
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("Sending fileheader error!\r\n");
 	}
 	BIO_flush(io);
@@ -550,6 +559,7 @@ void CHttpProtocol::Test(PREQUEST pReq)
 	long fl;
 	if (stat(pReq->szFileName, &buf) < 0)
 	{
+		Disconnect(pReq);
 		err_exit("Getting filesize error!!\r\n");
 	}
 	fl = buf.st_size;
@@ -622,6 +632,7 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io, string potential_calle
 		long length;
 		if (stat(pReq->szFileName, &buf) < 0)
 		{
+			Disconnect(pReq);
 			err_exit("Getting filesize error!!\r\n");
 		}
 		length = buf.st_size;
@@ -648,6 +659,7 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io, string potential_calle
 	}
 	else
 	{
+		Disconnect(pReq);
 		err_exit("The file/method requested doesn't exist!");
 	}
 
@@ -668,6 +680,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 	// 如果请求的文件不存在，则返回
 	if (!n)
 	{
+		Disconnect(pReq);
 		err_exit("The file requested doesn't exist!");
 	}
 
@@ -690,6 +703,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 			//if((nReq = BIO_puts(io, szMsg)) <= 0)//错误
 			if ((nReq = BIO_write(io, szMsg, strlen(szMsg))) <= 0) //错误
 			{
+				Disconnect(pReq);
 				err_exit("BIO_write() error!\n");
 			}
 			BIO_flush(io);
@@ -724,6 +738,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 	}
 	else //错误
 	{
+		Disconnect(pReq);
 		err_exit("Closing file error!");
 	}
 }
