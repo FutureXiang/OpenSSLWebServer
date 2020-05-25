@@ -1,3 +1,5 @@
 cert/
+/WebServer
+/cert
 *.o
 MyWebServer

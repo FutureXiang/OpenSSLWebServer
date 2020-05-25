@@ -58,6 +58,7 @@ private:
 	void _sendText_response(str2str &args);
 	void _recvText_response(str2str &args);
 	string _response_json;
+	map<string, vector<TextMessage>> messageList; //token --> message list
 
 public:
 	~CHttpProtocol(void);
