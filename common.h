@@ -27,7 +27,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
-#define HTTPSPORT 8000
+#define HTTPSPORT 443
 #define METHOD_GET 0
 #define METHOD_HEAD 1
 #define METHOD_POST 2
@@ -42,7 +42,8 @@ extern std::set<std::string> ALL_METHODS;
 #define ROOTCERTPEM "./cert/rootCA_cert.pem"
 #define ROOTKEYPEM "./cert/rootCA_private.key"
 #define SERVERKEYPEM "./cert/server_private.key"
-#define SERVERPEM "./cert/server_cert.crt"
+// #define SERVERPEM "./cert/server_cert.crt"
+#define SERVERPEM "./cert/server_cert_IP.crt"
 #define PASSWORD "OPENSSL"
 
 #define HTTP_STATUS_OK "200 OK"
@@ -108,9 +109,6 @@ typedef struct REQUEST
 	char key[1024];			   // 正确认证信息
 	SSL_CTX *ssl_ctx;
 	void *pHttpProtocol; // 指向类CHttpProtocol的指针
-
-	char method[64];						 // 请求的方法名
-	std::map<std::string, std::string> args; // 请求的参数
 } REQUEST, *PREQUEST;
 
 typedef struct HTTPSTATS
