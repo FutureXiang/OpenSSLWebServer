@@ -720,8 +720,13 @@ void CHttpProtocol::_groupGenToken_response(str2str &args)
 
 	printf("*** loginWithoutToken() !!!\n");
 	int code = 123;
-	string token = "456";
-	string message = "hahaha";
+	string token = to_string(random_6());
+	while(messageList.find(token) != messageList.end()){
+		token = to_string(random_6());
+	}
+	vector<TextMessage> tmp;
+	messageList[token] = tmp;
+	string message = "Your token is " + token + ", you can use it to invite your partners!";
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
 			code,
@@ -735,13 +740,13 @@ void CHttpProtocol::_groupUseToken_response(str2str &args)
 	_response_json = "";
 	int code = 0;
 	printf("*** loginWithToken(token) !!!\n");
-	if (!this->pReqPointer->args.count("token"))
+	if (!args.count("token"))
 	{
 		printf("[ERROR] token is None @ loginWithToken(token) !!!\n");
 		return;
 	}
-	string token = this->pReqPointer->args["token"];
-	string message = "Your token is " + token + ", you can use it to invite your partner!";
+	string token = args["token"];
+	string message = "Your token is " + token + ", you can use it to invite your partners!";
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
 			code,
@@ -754,30 +759,30 @@ void CHttpProtocol::_sendText_response(str2str &args)
 	_response_json = "";
 	int code = 0;
 	printf("*** send(token, name, text, time) !!!\n");
-	if (!this->pReqPointer->args.count("token"))
+	if (!args.count("token"))
 	{
 		printf("[ERROR] token is None @ send(token, ...) !!!\n");
 		return;
 	}
-	if (!this->pReqPointer->args.count("name"))
+	if (!args.count("name"))
 	{
 		printf("[ERROR] name is None @ send(..., name, ...) !!!\n");
 		return;
 	}
-	if (!this->pReqPointer->args.count("text"))
+	if (!args.count("text"))
 	{
 		printf("[ERROR] text is None @ send(..., text, ...) !!!\n");
 		return;
 	}
-	if (!this->pReqPointer->args.count("time"))
+	if (!args.count("time"))
 	{
 		printf("[ERROR] time is None @ send(..., time) !!!\n");
 		return;
 	}
-	string token = this->pReqPointer->args["token"];
-	string name = this->pReqPointer->args["name"];
-	string text = this->pReqPointer->args["text"];
-	string time = this->pReqPointer->args["time"];
+	string token = args["token"];
+	string name = args["name"];
+	string text = args["text"];
+	string time = args["time"];
 	if (messageList.find(token) != messageList.end())
 	{
 		TextMessage tmpMessage;
@@ -810,19 +815,29 @@ void CHttpProtocol::_recvText_response(str2str &args)
 
 	printf("*** receive(token) !!!\n");
 	printMap(args);
-	int code = 123;
+	int code = 200;
 	if (!args.count("token"))
 	{
 		printf("[ERROR] token is None @ receive(token) !!!\n");
 		return;
 	}
-	string message = "hahaha" + args["token"];
+	string token = args["token"];
 
+	string message = "You are getting messages from room " + args["token"];
 	string dataList = "[";
-	string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";
-	string data2 = "{\"name\": \"name2\", \"text\": \"123\\n456\\n789\\n\", \"time\": \"time2\"}";
-	dataList.append(data1 + ",");
-	dataList.append(data2 + "]");
+	// string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";
+	// string data2 = "{\"name\": \"name2\", \"text\": \"123\\n456\\n789\\n\", \"time\": \"time2\"}";
+	// dataList.append(data1 + ",");
+	// dataList.append(data2 + "]");
+	if(messageList.find(token) == messageList.end()){
+		dataList.append("]");
+	} else {
+		for(auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++){
+			string tempData = "{\"name\": " + iter->name + ", \"text\": " + iter->text +", \"time\": " + iter->time + "},";
+			dataList.append(tempData);
+		}
+		dataList.append("]");
+	}
 
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}\n",
