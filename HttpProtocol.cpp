@@ -273,16 +273,19 @@ bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSi
 	{
 		int content_length = stoi(result[1]);
 		printf("Content-Length = %d\n", content_length);
-		memset(buf, 0, BUFSIZZ); //初始化缓冲区
-		r = BIO_read(io, buf, content_length);
-		switch (SSL_get_error(ssl, r))
+		if (content_length > 0)
 		{
-		case SSL_ERROR_NONE:
-			body += string(buf);
-			printf(">>>%s<<<\n", buf);
-			break;
-		default:
-			break;
+			memset(buf, 0, BUFSIZZ); //初始化缓冲区
+			r = BIO_read(io, buf, content_length);
+			switch (SSL_get_error(ssl, r))
+			{
+			case SSL_ERROR_NONE:
+				body += string(buf);
+				printf(">>>%s<<<\n", buf);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 	return true;
@@ -363,6 +366,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	//nRet<=0时发生错误
 	if (nRet <= 0)
 	{
+		printf("SSL ERROR = %d\n", SSL_get_error(ssl, nRet));
 		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("SSL_accept()error! \r\n");
 		//return 0;
@@ -774,7 +778,7 @@ void CHttpProtocol::_groupGenToken_response(str2str &args)
 	{
 		code = -1;
 		token = "-1";
-		message = "[ERROR] token pool is Full @ loginWithoutToken() !!!";
+		message = "[ERROR] room pool is Full @ loginWithoutToken() !!!";
 		printf("%s\n", message.c_str());
 	}
 	else
@@ -787,7 +791,7 @@ void CHttpProtocol::_groupGenToken_response(str2str &args)
 		message = "Your token is " + token + ", you can use it to invite your partners!";
 	}
 	char temp_string[2048] = "";
-	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
+	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}",
 			code,
 			token.c_str(),
 			message.c_str());
@@ -874,7 +878,7 @@ void CHttpProtocol::_sendText_response(str2str &args)
 			tmpMessage.time = time;
 			messageList[token].push_back(tmpMessage);
 		}
-		string message = "You\'ve send the message successful\n";
+		message = "You\'ve send the message successful";
 	}
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
@@ -911,14 +915,16 @@ void CHttpProtocol::_recvText_response(str2str &args)
 		{
 			for (auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++)
 			{
-				string tempData = "{\"name\": " + iter->name + ", \"text\": " + iter->text + ", \"time\": " + iter->time + "},";
+				string tempData = "{\"name\": \"" + iter->name + "\", \"text\": \"" + iter->text + "\", \"time\": \"" + iter->time + "\"}";
+				if (iter + 1 != messageList[token].end())
+					tempData += ",";
 				dataList.append(tempData);
 			}
 			dataList.append("]");
 		}
 	}
 	char temp_string[2048] = "";
-	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}\n",
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}",
 			code,
 			message.c_str(),
 			dataList.c_str());

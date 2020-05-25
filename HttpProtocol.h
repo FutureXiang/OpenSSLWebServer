@@ -6,7 +6,7 @@ using namespace std;
 typedef map<string, string> str2str;
 
 #define random_6() (rand() % 100000 + 100000)
-#define MAX_TOKEN_ENTRIES 99999 // because of "rand()%100000"
+#define MAX_TOKEN_ENTRIES 99
 
 class CHttpProtocol
 {
