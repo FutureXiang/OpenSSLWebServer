@@ -267,21 +267,16 @@ bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSi
 	{
 		int content_length = stoi(result[1]);
 		printf("Content-Length = %d\n", content_length);
-
-		int content_recv_len = 0;
-		while (content_recv_len < content_length)
+		memset(buf, 0, BUFSIZZ); //初始化缓冲区
+		r = BIO_read(io, buf, content_length);
+		switch (SSL_get_error(ssl, r))
 		{
-			r = BIO_gets(io, buf, BUFSIZZ - 1);
-			switch (SSL_get_error(ssl, r))
-			{
-			case SSL_ERROR_NONE:
-				body += string(buf);
-				printf(">>>%s<<<\n", buf);
-				content_recv_len += r;
-				break;
-			default:
-				break;
-			}
+		case SSL_ERROR_NONE:
+			body += string(buf);
+			printf(">>>%s<<<\n", buf);
+			break;
+		default:
+			break;
 		}
 	}
 	return true;
@@ -393,7 +388,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	string method; // 请求的方法名
 	str2str args;  // 请求的参数
 	nRet = pHttpProtocol->Analyze(pReq, buf, body, method, args);
-	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n", pReq->nMethod, method.c_str());
+	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n\tbody = %s\n", pReq->nMethod, method.c_str(), body.c_str());
 	printMap(args);
 
 	if (nRet)
@@ -792,7 +787,6 @@ void CHttpProtocol::_recvText_response(str2str &args)
 	_response_json = "";
 
 	printf("*** receive(token) !!!\n");
-	printMap(args);
 	int code = 123;
 	if (!args.count("token"))
 	{
