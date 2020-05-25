@@ -16,6 +16,7 @@ subjectAltName=@alt_names
 
 [alt_names]
 DNS.1 = [server IP addr / server URL / localhost, e.g. 192.168.10.1]
+IP.1 = [server IP addr]
 ```
 Run:
 ```sh
