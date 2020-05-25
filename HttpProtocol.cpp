@@ -750,16 +750,27 @@ bool CHttpProtocol::SSLSendJson(PREQUEST pReq, BIO *io)
 void CHttpProtocol::_groupGenToken_response(str2str &args)
 {
 	_response_json = "";
-
+	int code = 0;
+	string token;
+	string message;
 	printf("*** loginWithoutToken() !!!\n");
-	int code = 123;
-	string token = to_string(random_6());
-	while(messageList.find(token) != messageList.end()){
-		token = to_string(random_6());
+
+	if (messageList.size() >= MAX_TOKEN_ENTRIES)
+	{
+		code = -1;
+		token = "-1";
+		message = "[ERROR] token pool is Full @ loginWithoutToken() !!!";
+		printf("%s\n", message.c_str());
 	}
-	vector<TextMessage> tmp;
-	messageList[token] = tmp;
-	string message = "Your token is " + token + ", you can use it to invite your partners!";
+	else
+	{
+		token = to_string(random_6());
+		while (messageList.find(token) != messageList.end())
+			token = to_string(random_6());
+		vector<TextMessage> tmp;
+		messageList[token] = tmp;
+		message = "Your token is " + token + ", you can use it to invite your partners!";
+	}
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
 			code,
@@ -772,14 +783,20 @@ void CHttpProtocol::_groupUseToken_response(str2str &args)
 {
 	_response_json = "";
 	int code = 0;
+	string message;
 	printf("*** loginWithToken(token) !!!\n");
+
 	if (!args.count("token"))
 	{
-		printf("[ERROR] token is None @ loginWithToken(token) !!!\n");
-		return;
+		code = -1;
+		message = "[ERROR] token is None @ loginWithToken(token) !!!";
+		printf("%s\n", message.c_str());
 	}
-	string token = args["token"];
-	string message = "Your token is " + token + ", you can use it to invite your partners!";
+	else
+	{
+		string token = args["token"];
+		message = "Your token is " + token + ", you can use it to invite your partners!";
+	}
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
 			code,
@@ -791,50 +808,59 @@ void CHttpProtocol::_sendText_response(str2str &args)
 {
 	_response_json = "";
 	int code = 0;
+	string message;
 	printf("*** send(token, name, text, time) !!!\n");
+
 	if (!args.count("token"))
 	{
-		printf("[ERROR] token is None @ send(token, ...) !!!\n");
-		return;
+		code = -1;
+		message = "[ERROR] token is None @ send(token, ...) !!!";
+		printf("%s\n", message.c_str());
 	}
-	if (!args.count("name"))
+	else if (!args.count("name"))
 	{
-		printf("[ERROR] name is None @ send(..., name, ...) !!!\n");
-		return;
+		code = -2;
+		message = "[ERROR] name is None @ send(..., name, ...) !!!";
+		printf("%s\n", message.c_str());
 	}
-	if (!args.count("text"))
+	else if (!args.count("text"))
 	{
-		printf("[ERROR] text is None @ send(..., text, ...) !!!\n");
-		return;
+		code = -3;
+		message = "[ERROR] text is None @ send(..., text, ...) !!!";
+		printf("%s\n", message.c_str());
 	}
-	if (!args.count("time"))
+	else if (!args.count("time"))
 	{
-		printf("[ERROR] time is None @ send(..., time) !!!\n");
-		return;
-	}
-	string token = args["token"];
-	string name = args["name"];
-	string text = args["text"];
-	string time = args["time"];
-	if (messageList.find(token) != messageList.end())
-	{
-		TextMessage tmpMessage;
-		tmpMessage.name = name;
-		tmpMessage.text = text;
-		tmpMessage.time = time;
-		messageList[token].push_back(tmpMessage);
+		code = -4;
+		message = "[ERROR] time is None @ send(..., time) !!!";
+		printf("%s\n", message.c_str());
 	}
 	else
 	{
-		vector<TextMessage> tmp;
-		messageList[token] = tmp;
-		TextMessage tmpMessage;
-		tmpMessage.name = name;
-		tmpMessage.text = text;
-		tmpMessage.time = time;
-		messageList[token].push_back(tmpMessage);
+		string token = args["token"];
+		string name = args["name"];
+		string text = args["text"];
+		string time = args["time"];
+		if (messageList.find(token) != messageList.end())
+		{
+			TextMessage tmpMessage;
+			tmpMessage.name = name;
+			tmpMessage.text = text;
+			tmpMessage.time = time;
+			messageList[token].push_back(tmpMessage);
+		}
+		else
+		{
+			vector<TextMessage> tmp;
+			messageList[token] = tmp;
+			TextMessage tmpMessage;
+			tmpMessage.name = name;
+			tmpMessage.text = text;
+			tmpMessage.time = time;
+			messageList[token].push_back(tmpMessage);
+		}
+		string message = "You\'ve send the message successful\n";
 	}
-	string message = "You\'ve send the message successful\n";
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
 			code,
@@ -845,32 +871,37 @@ void CHttpProtocol::_sendText_response(str2str &args)
 void CHttpProtocol::_recvText_response(str2str &args)
 {
 	_response_json = "";
-
+	int code = 0;
+	string message;
+	string dataList;
 	printf("*** receive(token) !!!\n");
-	int code = 200;
+
 	if (!args.count("token"))
 	{
-		printf("[ERROR] token is None @ receive(token) !!!\n");
-		return;
+		code = -1;
+		message = "[ERROR] token is None @ receive(token) !!!";
+		dataList = "[]";
+		printf("%s\n", message.c_str());
 	}
-	string token = args["token"];
-
-	string message = "You are getting messages from room " + args["token"];
-	string dataList = "[";
-	// string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";
-	// string data2 = "{\"name\": \"name2\", \"text\": \"123\\n456\\n789\\n\", \"time\": \"time2\"}";
-	// dataList.append(data1 + ",");
-	// dataList.append(data2 + "]");
-	if(messageList.find(token) == messageList.end()){
-		dataList.append("]");
-	} else {
-		for(auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++){
-			string tempData = "{\"name\": " + iter->name + ", \"text\": " + iter->text +", \"time\": " + iter->time + "},";
-			dataList.append(tempData);
+	else
+	{
+		string token = args["token"];
+		message = "You are getting messages from room " + args["token"];
+		dataList = "[";
+		if (messageList.find(token) == messageList.end())
+		{
+			dataList.append("]");
 		}
-		dataList.append("]");
+		else
+		{
+			for (auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++)
+			{
+				string tempData = "{\"name\": " + iter->name + ", \"text\": " + iter->text + ", \"time\": " + iter->time + "},";
+				dataList.append(tempData);
+			}
+			dataList.append("]");
+		}
 	}
-
 	char temp_string[2048] = "";
 	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}\n",
 			code,
