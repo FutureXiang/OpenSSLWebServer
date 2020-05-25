@@ -225,7 +225,7 @@ int CHttpProtocol::TcpListen()
 	return sock;
 }
 
-bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize)
+bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize, string &body)
 {
 	//printf("SSLRecvRequest \n");
 	char buf[BUFSIZZ];
@@ -256,6 +256,34 @@ bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSi
 	}
 	// 添加结束符
 	pBuf[length] = '\0';
+
+	string header = string((char *)pBuf);
+	body = string();
+	smatch result;
+	regex pattern("Content-Length: (\\d+)");
+	string::const_iterator itStart = header.begin();
+	string::const_iterator itEnd = header.end();
+	if (regex_search(itStart, itEnd, result, pattern))
+	{
+		int content_length = stoi(result[1]);
+		printf("Content-Length = %d\n", content_length);
+
+		int content_recv_len = 0;
+		while (content_recv_len < content_length)
+		{
+			r = BIO_gets(io, buf, BUFSIZZ - 1);
+			switch (SSL_get_error(ssl, r))
+			{
+			case SSL_ERROR_NONE:
+				body += string(buf);
+				printf(">>>%s<<<\n", buf);
+				content_recv_len += r;
+				break;
+			default:
+				break;
+			}
+		}
+	}
 	return true;
 }
 
@@ -349,7 +377,8 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 
 	// 接收request data
 	printf("****************\r\n");
-	if (!pHttpProtocol->SSLRecvRequest(ssl, io, buf, sizeof(buf)))
+	string body;
+	if (!pHttpProtocol->SSLRecvRequest(ssl, io, buf, sizeof(buf), body))
 	{
 		// 处理错误
 		pHttpProtocol->err_exit("Receiving SSLRequest error!! \r\n");
@@ -363,7 +392,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 
 	string method; // 请求的方法名
 	str2str args;  // 请求的参数
-	nRet = pHttpProtocol->Analyze(pReq, buf, method, args);
+	nRet = pHttpProtocol->Analyze(pReq, buf, body, method, args);
 	printf("Analyze Result:\n\tnMethod = %d\n\tmethod = %s\n", pReq->nMethod, method.c_str());
 	printMap(args);
 
@@ -425,7 +454,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	return NULL;
 }
 
-int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf, string &method, str2str &args)
+int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf, string &body, string &method, str2str &args)
 {
 	// 分析接收到的信息
 	char szSeps[] = " \n";
@@ -474,6 +503,14 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf, string &method, str2str &
 	regex pattern("(\\?|\\&)([^=]+)\\=([^&]+)");
 	string::const_iterator itStart = methodArgs.begin();
 	string::const_iterator itEnd = methodArgs.end();
+	while (regex_search(itStart, itEnd, result, pattern))
+	{
+		args[result[2]] = result[3];
+		itStart = result[0].second;
+	}
+	pattern = regex("(\\&)?([^=]+)\\=([^&]+)");
+	itStart = body.begin();
+	itEnd = body.end();
 	while (regex_search(itStart, itEnd, result, pattern))
 	{
 		args[result[2]] = result[3];
@@ -702,6 +739,7 @@ bool CHttpProtocol::SSLSendJson(PREQUEST pReq, BIO *io)
 	int length;
 	buf = pHttpProtocol->_response_json.c_str();
 	length = strlen(buf);
+	printf("*** SSLSendData !!!\n\t>>>%s<<<\n", buf);
 	if (BIO_write(io, buf, length) <= 0)
 	{
 		if (!BIO_should_retry(io))
@@ -731,6 +769,18 @@ void CHttpProtocol::_groupGenToken_response(str2str &args)
 
 void CHttpProtocol::_groupUseToken_response(str2str &args)
 {
+	_response_json = "";
+
+	printf("*** loginWithToken(token) !!!\n");
+	int code = 999;
+	string token = "999";
+	string message = "__:(__";
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
+			code,
+			token.c_str(),
+			message.c_str());
+	_response_json = string(temp_string);
 }
 
 void CHttpProtocol::_sendText_response(str2str &args)
