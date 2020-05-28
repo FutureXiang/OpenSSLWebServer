@@ -217,8 +217,14 @@ int CHttpProtocol::TcpListen()
 	sin.sin_family = PF_INET;
 	sin.sin_port = htons(HTTPSPORT); //访问端口
 
+	const int trueFlag = 1;
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueFlag, sizeof(int));
+
 	if (bind(sock, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0) //命名套接字
+	{
+		printf("socket bind error = %d\n", errno);
 		err_exit("Couldn't bind");
+	}
 	listen(sock, 5); //设置队列
 	//printf("TcpListen Ok\n");
 
@@ -267,16 +273,19 @@ bool CHttpProtocol::SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSi
 	{
 		int content_length = stoi(result[1]);
 		printf("Content-Length = %d\n", content_length);
-		memset(buf, 0, BUFSIZZ); //初始化缓冲区
-		r = BIO_read(io, buf, content_length);
-		switch (SSL_get_error(ssl, r))
+		if (content_length > 0)
 		{
-		case SSL_ERROR_NONE:
-			body += string(buf);
-			printf(">>>%s<<<\n", buf);
-			break;
-		default:
-			break;
+			memset(buf, 0, BUFSIZZ); //初始化缓冲区
+			r = BIO_read(io, buf, content_length);
+			switch (SSL_get_error(ssl, r))
+			{
+			case SSL_ERROR_NONE:
+				body += string(buf);
+				printf(">>>%s<<<\n", buf);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 	return true;
@@ -357,6 +366,8 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	//nRet<=0时发生错误
 	if (nRet <= 0)
 	{
+		printf("SSL ERROR = %d\n", SSL_get_error(ssl, nRet));
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("SSL_accept()error! \r\n");
 		//return 0;
 	}
@@ -376,6 +387,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	if (!pHttpProtocol->SSLRecvRequest(ssl, io, buf, sizeof(buf), body))
 	{
 		// 处理错误
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("Receiving SSLRequest error!! \r\n");
 	}
 	else
@@ -402,6 +414,7 @@ void *CHttpProtocol::ClientThread(LPVOID param)
 	// 生成并返回头部
 	if (!pHttpProtocol->SSLSendHeader(pReq, io, method))
 	{
+		pHttpProtocol->Disconnect(pReq);
 		pHttpProtocol->err_exit("Sending fileheader error!\r\n");
 	}
 	BIO_flush(io);
@@ -463,7 +476,8 @@ int CHttpProtocol::Analyze(PREQUEST pReq, LPBYTE pBuf, string &body, string &met
 
 	// 判断ruquest的mothed
 	cpToken = strtok((char *)pBuf, szSeps); // 缓存中字符串分解为一组标记串。
-	if (!strcmp(cpToken, "GET"))			// GET命令
+	printf("%s\n", cpToken);
+	if (!strcmp(cpToken, "GET")) // GET命令
 	{
 		pReq->nMethod = METHOD_GET;
 	}
@@ -549,6 +563,7 @@ void CHttpProtocol::Test(PREQUEST pReq)
 	long fl;
 	if (stat(pReq->szFileName, &buf) < 0)
 	{
+		Disconnect(pReq);
 		err_exit("Getting filesize error!!\r\n");
 	}
 	fl = buf.st_size;
@@ -621,6 +636,7 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io, string potential_calle
 		long length;
 		if (stat(pReq->szFileName, &buf) < 0)
 		{
+			Disconnect(pReq);
 			err_exit("Getting filesize error!!\r\n");
 		}
 		length = buf.st_size;
@@ -647,6 +663,7 @@ bool CHttpProtocol::SSLSendHeader(PREQUEST pReq, BIO *io, string potential_calle
 	}
 	else
 	{
+		Disconnect(pReq);
 		err_exit("The file/method requested doesn't exist!");
 	}
 
@@ -667,6 +684,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 	// 如果请求的文件不存在，则返回
 	if (!n)
 	{
+		Disconnect(pReq);
 		err_exit("The file requested doesn't exist!");
 	}
 
@@ -689,6 +707,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 			//if((nReq = BIO_puts(io, szMsg)) <= 0)//错误
 			if ((nReq = BIO_write(io, szMsg, strlen(szMsg))) <= 0) //错误
 			{
+				Disconnect(pReq);
 				err_exit("BIO_write() error!\n");
 			}
 			BIO_flush(io);
@@ -723,6 +742,7 @@ bool CHttpProtocol::SSLSendFile(PREQUEST pReq, BIO *io)
 	}
 	else //错误
 	{
+		Disconnect(pReq);
 		err_exit("Closing file error!");
 	}
 }
@@ -749,13 +769,29 @@ bool CHttpProtocol::SSLSendJson(PREQUEST pReq, BIO *io)
 void CHttpProtocol::_groupGenToken_response(str2str &args)
 {
 	_response_json = "";
-
+	int code = 0;
+	string token;
+	string message;
 	printf("*** loginWithoutToken() !!!\n");
-	int code = 123;
-	string token = "456";
-	string message = "hahaha";
+
+	if (messageList.size() >= MAX_TOKEN_ENTRIES)
+	{
+		code = -1;
+		token = "-1";
+		message = "[ERROR] room pool is Full @ loginWithoutToken() !!!";
+		printf("%s\n", message.c_str());
+	}
+	else
+	{
+		token = to_string(random_6());
+		while (messageList.find(token) != messageList.end())
+			token = to_string(random_6());
+		vector<TextMessage> tmp;
+		messageList[token] = tmp;
+		message = "Your token is " + token + ", you can use it to invite your partners!";
+	}
 	char temp_string[2048] = "";
-	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
+	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}",
 			code,
 			token.c_str(),
 			message.c_str());
@@ -765,44 +801,136 @@ void CHttpProtocol::_groupGenToken_response(str2str &args)
 void CHttpProtocol::_groupUseToken_response(str2str &args)
 {
 	_response_json = "";
-
+	int code = 0;
+	string message;
 	printf("*** loginWithToken(token) !!!\n");
-	int code = 999;
-	string token = "999";
-	string message = "__:(__";
+
+	if (!args.count("token"))
+	{
+		code = -1;
+		message = "[ERROR] token is None @ loginWithToken(token) !!!";
+		printf("%s\n", message.c_str());
+	}
+	else
+	{
+		string token = args["token"];
+		vector<TextMessage> tmp;
+		messageList[token] = tmp;
+		message = "Your token is " + token + ", you can use it to invite your partners!";
+	}
 	char temp_string[2048] = "";
-	sprintf((char *)temp_string, "{\"code\":%d,\"token\":\"%s\",\"message\":\"%s\"}\n",
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
 			code,
-			token.c_str(),
 			message.c_str());
 	_response_json = string(temp_string);
 }
 
 void CHttpProtocol::_sendText_response(str2str &args)
 {
+	_response_json = "";
+	int code = 0;
+	string message;
+	printf("*** send(token, name, text, time) !!!\n");
+
+	if (!args.count("token"))
+	{
+		code = -1;
+		message = "[ERROR] token is None @ send(token, ...) !!!";
+		printf("%s\n", message.c_str());
+	}
+	else if (!args.count("name"))
+	{
+		code = -2;
+		message = "[ERROR] name is None @ send(..., name, ...) !!!";
+		printf("%s\n", message.c_str());
+	}
+	else if (!args.count("text"))
+	{
+		code = -3;
+		message = "[ERROR] text is None @ send(..., text, ...) !!!";
+		printf("%s\n", message.c_str());
+	}
+	else if (!args.count("time"))
+	{
+		code = -4;
+		message = "[ERROR] time is None @ send(..., time) !!!";
+		printf("%s\n", message.c_str());
+	}
+	else
+	{
+		string token = args["token"];
+		string name = args["name"];
+		string text = args["text"];
+		string time = args["time"];
+		if (messageList.find(token) != messageList.end())
+		{
+			TextMessage tmpMessage;
+			tmpMessage.name = name;
+			tmpMessage.text = text;
+			tmpMessage.time = time;
+			messageList[token].push_back(tmpMessage);
+			message = "You\'ve send the message successful";
+		}
+		else
+		{
+			message = "The token you used("+ token +") is invalid";
+			code = -404;
+			/* vector<TextMessage> tmp;
+			messageList[token] = tmp;
+			TextMessage tmpMessage;
+			tmpMessage.name = name;
+			tmpMessage.text = text;
+			tmpMessage.time = time;
+			messageList[token].push_back(tmpMessage);*/
+		}
+	}
+	char temp_string[2048] = "";
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\"}",
+			code,
+			message.c_str());
+	_response_json = string(temp_string);
 }
 
 void CHttpProtocol::_recvText_response(str2str &args)
 {
 	_response_json = "";
-
+	int code = 0;
+	string message;
+	string dataList;
 	printf("*** receive(token) !!!\n");
-	int code = 123;
+
 	if (!args.count("token"))
 	{
-		printf("[ERROR] token is None @ receive(token) !!!\n");
-		return;
+		code = -1;
+		message = "[ERROR] token is None @ receive(token) !!!";
+		dataList = "[]";
+		printf("%s\n", message.c_str());
 	}
-	string message = "hahaha" + args["token"];
-
-	string dataList = "[";
-	string data1 = "{\"name\": \"name1\", \"text\": \"abc\\ndef\\nghi\\n\", \"time\": \"time1\"}";
-	string data2 = "{\"name\": \"name2\", \"text\": \"123\\n456\\n789\\n\", \"time\": \"time2\"}";
-	dataList.append(data1 + ",");
-	dataList.append(data2 + "]");
-
+	else
+	{
+		string token = args["token"];
+		if (messageList.find(token) == messageList.end())
+		{
+			message = "The token you used("+ token +") is invalid";
+			code = -404;
+			dataList = "[]";
+		}
+		else
+		{
+			message = "You are getting messages from room " + args["token"];
+			dataList = "[";
+			for (auto iter = messageList[token].begin(); iter != messageList[token].end(); iter++)
+			{
+				string tempData = "{\"name\": \"" + iter->name + "\", \"text\": \"" + iter->text + "\", \"time\": \"" + iter->time + "\"}";
+				if (iter + 1 != messageList[token].end())
+					tempData += ",";
+				dataList.append(tempData);
+			}
+			dataList.append("]");
+		}
+	}
 	char temp_string[2048] = "";
-	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}\n",
+	sprintf((char *)temp_string, "{\"code\":%d,\"message\":\"%s\",\"data\":%s}",
 			code,
 			message.c_str(),
 			dataList.c_str());

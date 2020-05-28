@@ -1,3 +1,6 @@
 cert/
+/WebServer
+/cert
 *.o
 MyWebServer
+.vscode

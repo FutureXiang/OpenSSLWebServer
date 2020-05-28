@@ -5,6 +5,9 @@ using namespace std;
 
 typedef map<string, string> str2str;
 
+#define random_6() (rand() % 100000 + 100000)
+#define MAX_TOKEN_ENTRIES 99
+
 class CHttpProtocol
 {
 public:
@@ -34,12 +37,12 @@ public:
 	static void *ListenThread(LPVOID param); //监听线程
 	static void *ClientThread(LPVOID param); //客户线程
 
-	bool RecvRequest(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize);	//接收HTTP请求
+	bool RecvRequest(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize);				  //接收HTTP请求
 	int Analyze(PREQUEST pReq, LPBYTE pBuf, string &body, string &m, str2str &a); //分析HTTP请求
-	void Disconnect(PREQUEST pReq);									//断开连接
-	void CreateTypeMap();											//创建类型映射
-	void SendHeader(PREQUEST pReq);									//发送HTTP头
-	int FileExist(PREQUEST pReq);									//判断文件是否存在
+	void Disconnect(PREQUEST pReq);												  //断开连接
+	void CreateTypeMap();														  //创建类型映射
+	void SendHeader(PREQUEST pReq);												  //发送HTTP头
+	int FileExist(PREQUEST pReq);												  //判断文件是否存在
 
 	void GetCurrentTime(LPSTR lpszString);						  //得到系统当前时间
 	bool GetLastModified(HANDLE hFile, LPSTR lpszString);		  //得到文件上次修改的时间
@@ -48,8 +51,8 @@ public:
 	bool SendBuffer(PREQUEST pReq, LPBYTE pBuf, DWORD dwBufSize); //发送缓冲区内容
 public:
 	bool SSLRecvRequest(SSL *ssl, BIO *io, LPBYTE pBuf, DWORD dwBufSize, string &o); //接收HTTPS请求
-	bool SSLSendHeader(PREQUEST pReq, BIO *io, string method);			  //发送HTTPS头
-	bool SSLSendFile(PREQUEST pReq, BIO *io);							  //由SSL通道发送文件
+	bool SSLSendHeader(PREQUEST pReq, BIO *io, string method);						 //发送HTTPS头
+	bool SSLSendFile(PREQUEST pReq, BIO *io);										 //由SSL通道发送文件
 	bool SSLSendJson(PREQUEST pReq, BIO *io);
 
 private:
@@ -58,6 +61,7 @@ private:
 	void _sendText_response(str2str &args);
 	void _recvText_response(str2str &args);
 	string _response_json;
+	map<string, vector<TextMessage>> messageList; //token --> message list
 
 public:
 	~CHttpProtocol(void);

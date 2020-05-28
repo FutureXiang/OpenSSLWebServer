@@ -6,8 +6,10 @@
 #include <iostream>
 #include <set>
 #include <map>
+#include <cstdlib>
 #include <string>
 #include <regex>
+#include <vector>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -115,5 +117,13 @@ typedef struct HTTPSTATS
 	DWORD dwRecv; // 收到字节数
 	DWORD dwSend; // 发送字节数
 } HTTPSTATS, *PHTTPSTATS;
+
+//文本消息
+typedef struct TextMessage
+{
+	std::string name;
+	std::string text;
+	std::string time;
+} TextMessage;
 
 #endif
