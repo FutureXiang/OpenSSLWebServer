@@ -1,5 +1,5 @@
 # 基于OpenSSL的安全Web服务器
-在Linux平台上利用OpenSSL实现安全的Web Server。Server能够并发处理多个请求，包括GET、POST及HEAD等。
+在Linux平台上利用OpenSSL实现安全的Web Server。Server能够并发处理多个请求，包括GET、POST等。
 ## Usage
 ### Requirements
 - Ubuntu >= 14.04
@@ -40,13 +40,16 @@ openssl x509 -req -in server.csr -CA rootCA_cert.pem -CAkey rootCA_private.key -
 # 生成crt服务器证书
 ```
 
-### Build
+### Build (optional, if the pre-built binary works)
 ```sh
 git clone git@github.com:FutureXiang/OpenSSLWebServer.git
 cd OpenSSLWebServer
 
 vim common.h
 # 修改 ROOTCERTPEM, ROOTKEYPEM, SERVERKEYPEM, SERVERPEM 为上面生成的证书和密钥地址
+
+vim HttpProtocol.cpp
+# 修改 m_strRootDir 为网站根目录
 
 make
 ```
