@@ -56,3 +56,5 @@ make
 
 ### Run
 Requires **privilege escalation (sudo)**: `sudo ./MyWebServer`
+
+Client needs to **install the trusted root certificate** `rootCA_cert.pem`.
